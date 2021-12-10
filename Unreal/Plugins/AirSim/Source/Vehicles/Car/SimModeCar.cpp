@@ -41,12 +41,110 @@ void ASimModeCar::BeginPlay()
 //     pause(false);
 // }
 
+void ASimModeCar::initializeForPlay()
+{
+    std::vector<msr::airlib::UpdatableObject*> vehicles;
+    for (auto& api : getApiProvider()->getVehicleSimApis())
+        vehicles.push_back(api);
+    //TODO: directly accept getVehicleSimApis() using generic container
+
+    std::unique_ptr<PhysicsEngineBase> physics_engine = createPhysicsEngine();
+    physics_engine_ = physics_engine.get();
+    physics_world_.reset(new msr::airlib::PhysicsWorld(std::move(physics_engine),
+                                                       vehicles,
+                                                       getPhysicsLoopPeriod()));
+}
+
+void ASimModeCar::startAsyncUpdator()
+{
+    physics_world_->startAsyncUpdator();
+}
+
+void ASimModeCar::stopAsyncUpdator()
+{
+    physics_world_->stopAsyncUpdator();
+}
+
+long long ASimModeCar::getPhysicsLoopPeriod() const //nanoseconds
+{
+    return physics_loop_period_;
+}
+void ASimModeCar::setPhysicsLoopPeriod(long long period)
+{
+    physics_loop_period_ = period;
+}
+
+std::unique_ptr<ASimModeCar::PhysicsEngineBase> ASimModeCar::createPhysicsEngine()
+{
+    std::unique_ptr<PhysicsEngineBase> physics_engine;
+    std::string physics_engine_name = getSettings().physics_engine_name;
+    if (physics_engine_name == "")
+        physics_engine.reset(); //no physics engine
+    else if (physics_engine_name == "FastPhysicsEngine") {
+        msr::airlib::Settings fast_phys_settings;
+        if (msr::airlib::Settings::singleton().getChild("FastPhysicsEngine", fast_phys_settings)) {
+            physics_engine.reset(new msr::airlib::FastPhysicsEngine(fast_phys_settings.getBool("EnableGroundLock", true)));
+        }
+        else {
+            physics_engine.reset(new msr::airlib::FastPhysicsEngine());
+        }
+
+        physics_engine->setWind(getSettings().wind);
+    }
+    else if (physics_engine_name == "ExternalPhysicsEngine") {
+        physics_engine.reset(new msr::airlib::ExternalPhysicsEngine());
+    }
+    else {
+        physics_engine.reset();
+        UAirBlueprintLib::LogMessageString("Unrecognized physics engine name: ", physics_engine_name, LogDebugLevel::Failure);
+    }
+
+    return physics_engine;
+}
+
 void ASimModeCar::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
     //stop physics thread before we dismantle
     stopAsyncUpdator();
 
     Super::EndPlay(EndPlayReason);
+}
+
+bool ASimModeCar::isPaused() const
+{
+    return physics_world_->isPaused();
+}
+
+void ASimModeCar::pause(bool is_paused)
+{
+    physics_world_->pause(is_paused);
+    UGameplayStatics::SetGamePaused(this->GetWorld(), is_paused);
+    pause_physx(true);
+}
+
+void ASimModeCar::pause_physx(bool is_paused)
+{
+    float current_clockspeed_;
+    if (is_paused)
+        current_clockspeed_ = 0;
+    else
+        current_clockspeed_ = getSettings().clock_speed;
+    UAirBlueprintLib::setUnrealClockSpeed(this, current_clockspeed_);
+}
+
+void ASimModeCar::continueForTime(double seconds)
+{
+    if (physics_world_->isPaused()) {
+        physics_world_->pause(false);
+        UGameplayStatics::SetGamePaused(this->GetWorld(), false);
+        pause_physx(false);
+    }
+
+    physics_world_->continueForTime(seconds);
+    while (!physics_world_->isPaused()) {
+        continue;
+    }
+    UGameplayStatics::SetGamePaused(this->GetWorld(), true);
 }
 
 void ASimModeCar::setupClockSpeed()
@@ -119,6 +217,36 @@ void ASimModeCar::setupClockSpeed()
 //     }
 // }
 
+void ASimModeCar::Tick(float DeltaSeconds)
+{
+    { //keep this lock as short as possible
+        physics_world_->lock();
+
+        physics_world_->enableStateReport(EnableReport);
+        physics_world_->updateStateReport();
+
+        for (auto& api : getApiProvider()->getVehicleSimApis())
+            api->updateRenderedState(DeltaSeconds);
+
+        physics_world_->unlock();
+    }
+
+    //perform any expensive rendering update outside of lock region
+    for (auto& api : getApiProvider()->getVehicleSimApis())
+        api->updateRendering(DeltaSeconds);
+
+    Super::Tick(DeltaSeconds);
+}
+
+void ASimModeCar::reset()
+{
+    UAirBlueprintLib::RunCommandOnGameThread([this]() {
+        physics_world_->reset();
+    }, true);
+
+    //no need to call base reset because of our custom implementation
+}
+
 //-------------------------------- overrides -----------------------------------------------//
 
 std::unique_ptr<msr::airlib::ApiServerBase> ASimModeCar::createApiServer() const
@@ -182,4 +310,15 @@ msr::airlib::VehicleApiBase* ASimModeCar::getVehicleApi(const PawnSimApi::Params
 {
     const auto car_sim_api = static_cast<const CarPawnSimApi*>(sim_api);
     return car_sim_api->getVehicleApi();
+}
+
+void ASimModeCar::updateDebugReport(msr::airlib::StateReporterWrapper& debug_reporter)
+{
+    unused(debug_reporter);
+    //we use custom debug reporting for this class
+}
+
+std::string ASimModeCar::getDebugReport()
+{
+    return physics_world_->getDebugReport();
 }
