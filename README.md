@@ -31,7 +31,7 @@ Cars in AirSim
 [![Build Status](https://github.com/microsoft/AirSim/actions/workflows/test_macos.yml/badge.svg)](https://github.com/microsoft/AirSim/actions/workflows/test_macos.yml)
 * [Build it](https://microsoft.github.io/AirSim/build_linux)
 
-For more details, see the [use precompiled binaries](docs/use_precompiled.md) document. 
+For more details, see the [use precompiled binaries](docs/use_precompiled.md) document.
 
 ## How to Use It
 
@@ -122,7 +122,7 @@ We are maintaining a [list](https://microsoft.github.io/AirSim/who_is_using) of 
 
 Join our [GitHub Discussions group](https://github.com/microsoft/AirSim/discussions) to stay up to date or ask any questions.
 
-We also have an AirSim group on [Facebook](https://www.facebook.com/groups/1225832467530667/). 
+We also have an AirSim group on [Facebook](https://www.facebook.com/groups/1225832467530667/).
 
 
 ## What's New
@@ -149,5 +149,3 @@ This project has adopted the [Microsoft Open Source Code of Conduct](https://ope
 ## License
 
 This project is released under the MIT License. Please review the [License file](LICENSE) for more details.
-
-
