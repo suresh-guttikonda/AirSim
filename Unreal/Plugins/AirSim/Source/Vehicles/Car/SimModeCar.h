@@ -2,23 +2,24 @@
 
 #include "CoreMinimal.h"
 
-#include "SimMode/SimModeBase.h"
+#include "SimMode/SimModeWorldBase.h"
 #include "CarPawn.h"
 #include "common/Common.hpp"
 #include "api/VehicleSimApiBase.hpp"
 #include "SimModeCar.generated.h"
 
 UCLASS()
-class AIRSIM_API ASimModeCar : public ASimModeBase
+class AIRSIM_API ASimModeCar : public ASimModeWorldBase
 {
     GENERATED_BODY()
 
 public:
     virtual void BeginPlay() override;
-    virtual void Tick(float DeltaSeconds) override;
-
-    virtual void continueForTime(double seconds) override;
-    virtual void continueForFrames(uint32_t frames) override;
+    virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+    // virtual void Tick(float DeltaSeconds) override;
+    //
+    // virtual void continueForTime(double seconds) override;
+    // virtual void continueForFrames(uint32_t frames) override;
 
 private:
     typedef msr::airlib::ClockFactory ClockFactory;
